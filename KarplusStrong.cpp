@@ -3,10 +3,12 @@
 
 KarplusStrong::KarplusStrong() {}
 
-int KarplusStrong::setup(unsigned int length, unsigned int fs)
+int KarplusStrong::setup(unsigned int length, unsigned int fs, float frequency)
 {
+	fs_ = fs;
 	bufferLength = length * fs;
 	delayBuffer.resize(bufferLength);
+	updateFrequency(frequency);
 }
 
 float KarplusStrong::process(float input) 
@@ -46,6 +48,16 @@ float KarplusStrong::process(float input)
 
 void KarplusStrong::process(float* input, float* output, unsigned int length)
 {
+	for (unsigned int i = 0; i < length; i++)
+		output[i] = process(input[i]);
+}
+
+void KarplusStrong::updateFrequency(float frequency)
+{
+	p1 = fs/frequency;
+	delayLength = floor(p1 - 0.5 - epsilon);
+	pcF1 = 1 - delayLength - 0.5;
+	apC = (1 - pcF1)/(1 + pcF1);
 }
 
 void KarplusStrong::updateReadPointer()

@@ -16,11 +16,18 @@ KarplusStrong
 			float apXm1;
 		};
 
+		struct tuningParameters {
+			float p1; // Real value for the period of the first partial
+			float pcF1; // Low-frequency phase delay of 1st order all-pass
+			float epsilon = 0.0001;
+		};
+
+		int fs_;
 	public:
 		KarplusStrong();
 		~KarplusStrong();
-		
-		int setup(unsigned int length, unsigned int fs);
+
+		int setup(unsigned int length, unsigned int fs, float frequency = 440.0);
 		void cleanup();
 
 		struct ksCoefficients {
@@ -32,6 +39,7 @@ KarplusStrong
 		float process();
 		void process(float* input, float* output, unsigned int length);
 		
+		void updateFrequency(float frequency);
 		void updateReadPointer();
 		void updateWritePointer();
 

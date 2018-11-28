@@ -3,18 +3,26 @@
 
 KarplusStrong::KarplusStrong() {}
 
+KarplusStrong::KarplusStrong(unsigned int length, unsigned int fs, float frequency)
+{
+	setup(length, fs, frequency);
+}
+
 int KarplusStrong::setup(unsigned int length, unsigned int fs, float frequency)
 {
 	fs_ = fs;
-	bufferLength = length * fs;
+	bufferLength = length * fs_;
 	delayBuffer.resize(bufferLength);
+	//fill(delayBuffer.begin(), delayBuffer.end(), 0.0);
 	updateFrequency(frequency);
+
+	return 0;
 }
 
 float KarplusStrong::process(float input) 
 {	
 	float prev;
-	float outPt
+	float outPt;
 	float out;
 
 	updateReadPointer();
@@ -29,7 +37,7 @@ float KarplusStrong::process(float input)
 	}
 	
 	// Difference equation for K-S (modified to include input excitation):
-	// y(n) = scalingi * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
+	// y(n) = scaling * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
 	float scalingFactor = dampingFactor/2.0f;
 	outPt = scalingFactor * input + dampingFactor * ( delayBuffer[readPointer] + prev ) / 2.0f;
 	// Difference equation for all-pass filter used to correct tuning errors:
@@ -54,10 +62,12 @@ void KarplusStrong::process(float* input, float* output, unsigned int length)
 
 void KarplusStrong::updateFrequency(float frequency)
 {
-	p1 = fs/frequency;
+	p1 = fs_/frequency;
 	delayLength = floor(p1 - 0.5 - epsilon);
 	pcF1 = 1 - delayLength - 0.5;
 	apC = (1 - pcF1)/(1 + pcF1);
+	printf("delayLength: %d\n", delayLength);
+	printf("p1: %f, pcF1: %f, apC: %f\n", p1, pcF1, apC);
 }
 
 void KarplusStrong::updateReadPointer()

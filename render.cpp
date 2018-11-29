@@ -12,6 +12,8 @@ bool setup(BelaContext *context, void *userData)
 		return false;
 	}
 	
+	string.dampingFactor = 0.989;
+	
 	scope.setup(2, context->audioSampleRate);
 	
 	return true;
@@ -23,7 +25,7 @@ void render(BelaContext *context, void *userData)
 	for(unsigned int n = 0; n < context->audioFrames; n++) {
 		
 		ksOut = string.process(audioRead(context, n, 0));
-
+		
 		for(unsigned int ch = 0; ch < context->audioOutChannels; ch++){
 			audioWrite(context, n, ch, ksOut);
 		}

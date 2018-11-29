@@ -21,8 +21,8 @@ int KarplusStrong::setup(unsigned int length, unsigned int fs, float frequency)
 
 float KarplusStrong::process(float input) 
 {	
-	float prev;
-	float outPt;
+	//float prev;
+	//float outPt;
 	float out;
 
 	updateReadPointer();
@@ -40,17 +40,23 @@ float KarplusStrong::process(float input)
 	// y(n) = scaling * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
 	float scalingFactor = dampingFactor/2.0f;
 	outPt = scalingFactor * input + dampingFactor * ( delayBuffer[readPointer] + prev ) / 2.0f;
-	// Difference equation for all-pass filter used to correct tuning errors:
-	// y(n) = C * x(n) - x(n-1) + C * y(n-1) 
-	out = apC * (outPt + apYm1) + apXm1;
-
-	apYm1 = out;
-	apXm1 = outPt;
-	
+	out = outPt;
 	delayBuffer[writePointer] = out;
 	
 	updateWritePointer();
 
+	return out;
+}
+
+float KarplusStrong::tuningFilter(float input)
+{
+	// Difference equation for all-pass filter used to correct tuning errors:
+	// y(n) = C * x(n) + x(n-1) - C * y(n-1) 
+	float out = apC * (input - apYm1) + apXm1;
+
+	apYm1 = out;
+	apXm1 = input;
+	
 	return out;
 }
 
@@ -64,10 +70,8 @@ void KarplusStrong::updateFrequency(float frequency)
 {
 	p1 = fs_/frequency;
 	delayLength = floor(p1 - 0.5 - epsilon);
-	pcF1 = 1 - delayLength - 0.5;
+	pcF1 = p1 - delayLength - 0.5;
 	apC = (1 - pcF1)/(1 + pcF1);
-	printf("delayLength: %d\n", delayLength);
-	printf("p1: %f, pcF1: %f, apC: %f\n", p1, pcF1, apC);
 }
 
 void KarplusStrong::updateReadPointer()

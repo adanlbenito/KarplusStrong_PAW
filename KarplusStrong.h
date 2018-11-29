@@ -36,6 +36,7 @@ class KarplusStrong
 		int delayLength;
 		float dampingFactor = 0.989;
 		
+		float tuningFilter(float input);
 		float process(float input);
 		void process(float* input, float* output, unsigned int length);
 		
@@ -44,4 +45,7 @@ class KarplusStrong
 		void updateWritePointer();
 		
 		int getReadPointer() { return readPointer; };
+		
+		float prev;
+		float outPt;
 };

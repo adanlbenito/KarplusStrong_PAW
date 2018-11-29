@@ -12,7 +12,7 @@ bool setup(BelaContext *context, void *userData)
 		return false;
 	}
 	
-	string.dampingFactor = 0.989;
+	string.setDamping(0.989);
 	
 	scope.setup(2, context->audioSampleRate);
 	

@@ -10,12 +10,13 @@ float gGain = 0.55;
 int gAudioFramesPerAnalogFrame = 0;
 
 float gFreqRange[2] = { 261.63, 523.25 };
-float gDampingRange[2] = { 0.7, 0.999 };
+float gDampingRange[2] = { 0.86, 0.998 };
 
 int gFsrInput = 0;
 int gPotInput = 1;
 
 float gAnalogFullScale = 3.3/4.096;
+float gFsrRange[2] = { 0.4, gAnalogFullScale };
 
 float logMap(float input, float inRange0, float inRange1, float outRange0, float outRange1)
 {
@@ -62,14 +63,15 @@ void render(BelaContext *context, void *userData)
 				//	or every two audio frames (if it is 22050)
 				
 				fsrVal = analogRead(context, n/gAudioFramesPerAnalogFrame, gFsrInput);
-				damping = logMap(fsrVal, gAnalogFullScale, 0, gDampingRange[0], gDampingRange[1]);
+				fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
+				damping = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gDampingRange[0], gDampingRange[1]);
 				potVal = analogRead(context, n/gAudioFramesPerAnalogFrame, gPotInput);
 				frequency = map(potVal, 0, 1, gFreqRange[0], gFreqRange[1]);
 				
 				string.setFrequency(frequency);
 				string.setDamping(damping);
 			}
-			scope.log(fsrVal, potVal);
+			scope.log(fsrVal, potVal, damping);
 		}
 	}
 }

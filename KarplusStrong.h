@@ -23,6 +23,14 @@ class KarplusStrong
 		float epsilon = 0.0001;
 
 		int fs_;
+
+		// Karplus-strong coefficients
+		int delayLength_;
+		float dampingFactor_ = 0.989;
+
+		void updateReadPointer();
+		void updateWritePointer();
+
 	public:
 		KarplusStrong();
 		KarplusStrong(unsigned int length, unsigned int fs, float frequency);
@@ -31,21 +39,13 @@ class KarplusStrong
 		int setup(unsigned int length, unsigned int fs, float frequency = 440.0);
 		void cleanup();
 
-		// Karplus-strong coefficients
-		float frequency;
-		int delayLength;
-		float dampingFactor = 0.989;
+
 		
 		float tuningFilter(float input);
 		float process(float input);
 		void process(float* input, float* output, unsigned int length);
 		
-		void updateFrequency(float frequency);
-		void updateReadPointer();
-		void updateWritePointer();
-		
-		int getReadPointer() { return readPointer; };
-		
-		float prev;
-		float outPt;
+		void setFrequency(float frequency);
+		void setDamping(float damping);
+
 };

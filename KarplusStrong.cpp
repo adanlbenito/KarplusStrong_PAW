@@ -14,15 +14,15 @@ int KarplusStrong::setup(unsigned int length, unsigned int fs, float frequency)
 	bufferLength = length * fs_;
 	delayBuffer.resize(bufferLength);
 	//fill(delayBuffer.begin(), delayBuffer.end(), 0.0);
-	updateFrequency(frequency);
+	setFrequency(frequency);
 
 	return 0;
 }
 
 float KarplusStrong::process(float input) 
 {	
-	//float prev;
-	//float outPt;
+	float prev;
+	float outPt;
 	float out;
 
 	updateReadPointer();
@@ -38,9 +38,9 @@ float KarplusStrong::process(float input)
 	
 	// Difference equation for K-S (modified to include input excitation):
 	// y(n) = scaling * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
-	float scalingFactor = dampingFactor/2.0f;
-	outPt = scalingFactor * input + dampingFactor * ( delayBuffer[readPointer] + prev ) / 2.0f;
-	out = outPt;
+	float scalingFactor = dampingFactor_/2.0f;
+	outPt = scalingFactor * input + dampingFactor_ * ( delayBuffer[readPointer] + prev ) / 2.0f;
+	out = tuningFilter(outPt);
 	delayBuffer[writePointer] = out;
 	
 	updateWritePointer();
@@ -66,17 +66,23 @@ void KarplusStrong::process(float* input, float* output, unsigned int length)
 		output[i] = process(input[i]);
 }
 
-void KarplusStrong::updateFrequency(float frequency)
+void KarplusStrong::setFrequency(float frequency)
 {
 	p1 = fs_/frequency;
-	delayLength = floor(p1 - 0.5 - epsilon);
-	pcF1 = p1 - delayLength - 0.5;
+	delayLength_ = floor(p1 - 0.5 - epsilon);
+	pcF1 = p1 - delayLength_ - 0.5;
 	apC = (1 - pcF1)/(1 + pcF1);
+}
+
+
+void KarplusStrong::setDamping(float damping)
+{
+	dampingFactor_ = damping;
 }
 
 void KarplusStrong::updateReadPointer()
 {
-	readPointer = (writePointer - delayLength + bufferLength) % bufferLength;
+	readPointer = (writePointer - delayLength_ + bufferLength) % bufferLength;
 }	
 
 void KarplusStrong::updateWritePointer()

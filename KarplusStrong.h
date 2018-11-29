@@ -1,6 +1,4 @@
 #include <vector>
-#include <math.h>
-#include <stdio.h>
 
 class KarplusStrong
 {
@@ -9,7 +7,7 @@ class KarplusStrong
 		std::vector<float> delayBuffer;
 
 		int bufferLength;
-		int readPointer;
+		float readPointer;
 		int writePointer = 0;
 
 		// All-pass coefficients
@@ -25,11 +23,12 @@ class KarplusStrong
 		int fs_;
 
 		// Karplus-strong coefficients
-		int delayLength_;
+		float delayLength_;
 		float dampingFactor_ = 0.989;
 
 		void updateReadPointer();
 		void updateWritePointer();
+		float interpolatedRead(float index);
 
 	public:
 		KarplusStrong();
@@ -38,8 +37,6 @@ class KarplusStrong
 
 		int setup(unsigned int length, unsigned int fs, float frequency = 440.0);
 		void cleanup();
-
-
 		
 		float tuningFilter(float input);
 		float process(float input);
@@ -48,4 +45,5 @@ class KarplusStrong
 		void setFrequency(float frequency);
 		void setDamping(float damping);
 
+		static float linearInterpolation(float index, float pVal, float nVal);
 };

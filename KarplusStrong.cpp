@@ -1,4 +1,6 @@
 #include <KarplusStrong.h>
+#include <math.h>
+#include <stdio.h>
 
 
 KarplusStrong::KarplusStrong() {}
@@ -27,19 +29,12 @@ float KarplusStrong::process(float input)
 
 	updateReadPointer();
 	
-	if(readPointer == 0)
-	{
-		prev = delayBuffer[bufferLength - 1];
-	}
-	else
-	{
-		prev = delayBuffer[readPointer - 1];
-	}
+	prev = interpolatedRead(readPointer-1);
 	
 	// Difference equation for K-S (modified to include input excitation):
 	// y(n) = scaling * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
 	float scalingFactor = dampingFactor_/2.0f;
-	outPt = scalingFactor * input + dampingFactor_ * ( delayBuffer[readPointer] + prev ) / 2.0f;
+	outPt = scalingFactor * input + dampingFactor_ * ( interpolatedRead(readPointer) + prev ) / 2.0f;
 	out = tuningFilter(outPt);
 	delayBuffer[writePointer] = out;
 	
@@ -69,7 +64,7 @@ void KarplusStrong::process(float* input, float* output, unsigned int length)
 void KarplusStrong::setFrequency(float frequency)
 {
 	p1 = fs_/frequency;
-	delayLength_ = floor(p1 - 0.5 - epsilon);
+	delayLength_ = p1 - 0.5 - epsilon;
 	pcF1 = p1 - delayLength_ - 0.5;
 	apC = (1 - pcF1)/(1 + pcF1);
 }
@@ -77,13 +72,36 @@ void KarplusStrong::setFrequency(float frequency)
 
 void KarplusStrong::setDamping(float damping)
 {
-	dampingFactor_ = damping;
+	if(damping != dampingFactor_)
+		dampingFactor_ = damping;
 }
 
 void KarplusStrong::updateReadPointer()
 {
-	readPointer = (writePointer - delayLength_ + bufferLength) % bufferLength;
+	readPointer = (writePointer - delayLength_ + bufferLength);
+	while(readPointer >= bufferLength)
+		readPointer -= bufferLength;
 }	
+
+float KarplusStrong::interpolatedRead(float index)
+{
+	while(index < 0)
+		index += bufferLength;
+	int pIndex = (int)index;
+	int nIndex = pIndex + 1;
+	while(nIndex >= bufferLength)
+		nIndex -= bufferLength;
+	float frac = index - pIndex;
+	float pVal = delayBuffer[pIndex];
+	float nVal = delayBuffer[nIndex];
+
+	return linearInterpolation(frac, pVal, nVal);
+}
+
+float KarplusStrong::linearInterpolation(float index, float pVal, float nVal)
+{
+	return pVal + index * (nVal - pVal);
+}
 
 void KarplusStrong::updateWritePointer()
 {

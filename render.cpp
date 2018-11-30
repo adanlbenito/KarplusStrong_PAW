@@ -1,15 +1,16 @@
 #include <Bela.h>
 #include <KarplusStrong.h>
-#include <Scope/Scope.h>
+#include <Scope.h>
 #include <math.h>
 #include <math_neon.h>
 
 KarplusStrong string;
 Scope scope;
 
-float gGain = 0.55;
-int gAudioFramesPerAnalogFrame = 0;
+float gOutputGain = 0.55;
+int gAudioFramesPerAnalogFrame;
 
+float gMinFrequency = 100;
 float gFreqRange[2] = { 261.63, 523.25 };
 float gDampingRange[2] = { 0.86, 0.998 };
 
@@ -30,14 +31,12 @@ float logMap(float input, float inRange0, float inRange1, float outRange0, float
 
 bool setup(BelaContext *context, void *userData)
 {
-	if(string.setup(2, context->audioSampleRate) != 0) {
+	if(string.setup(context->audioSampleRate, gMinFrequency, 432) != 0) {
 		fprintf(stderr, "Unable to initialise touch sensor\n");
 		return false;
 	}
-	
-	string.setDamping(0.989);
-	
-	scope.setup(3, context->audioSampleRate);
+
+	scope.setup(6, context->audioSampleRate);
 	
 	gAudioFramesPerAnalogFrame = context->audioFrames / context->analogFrames;
 
@@ -52,10 +51,11 @@ void render(BelaContext *context, void *userData)
 	
 	for(unsigned int n = 0; n < context->audioFrames; n++) {
 		
-		ksOut = string.process(audioRead(context, n, 0));
+		float piezoInput = audioRead(context, n, 0);
+		ksOut = string.process(piezoInput);
 		
 		for(unsigned int ch = 0; ch < context->audioOutChannels; ch++){
-			audioWrite(context, n, ch, gGain*ksOut);
+			audioWrite(context, n, ch, gOutputGain * ksOut);
 			
 			if(gAudioFramesPerAnalogFrame && !(n % gAudioFramesPerAnalogFrame)) {
 				// read analog inputs and update frequency and damping
@@ -72,7 +72,7 @@ void render(BelaContext *context, void *userData)
 				string.setFrequency(frequency);
 				string.setDamping(damping);
 			}
-			scope.log(fsrVal, potVal, damping);
+			scope.log(piezoInput, ksOut, fsrVal, potVal);
 		}
 	}
 }

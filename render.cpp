@@ -2,6 +2,7 @@
 #include <KarplusStrong.h>
 #include <Scope/Scope.h>
 #include <math.h>
+#include <math_neon.h>
 
 KarplusStrong string;
 Scope scope;
@@ -20,10 +21,10 @@ float gFsrRange[2] = { 0.4, gAnalogFullScale };
 
 float logMap(float input, float inRange0, float inRange1, float outRange0, float outRange1)
 {
-	float base = powf(10, outRange0);
-	float range = powf(10, outRange1) - base;
+	float base = powf_neon(10, outRange0);
+	float range = powf_neon(10, outRange1) - base;
 	float normIn = map(input, inRange0, inRange1, 0, 1);
-	float out = log10(base + normIn * range);
+	float out = log10f_neon(base + normIn * range);
 	return out;
 }
 

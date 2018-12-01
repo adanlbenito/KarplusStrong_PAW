@@ -1,5 +1,6 @@
 #include <vector>
 
+#define KS_CONSTANT_LOWPASS // undef to use some more experimental and nicer damping instead
 class KarplusStrong
 {
 
@@ -14,7 +15,11 @@ class KarplusStrong
 
 		// Karplus-strong coefficients
 		float delayLength_;
-		float dampingFactor_ = 0.989;
+		float lossFactor_ = 0.989;
+#ifndef KS_CONSTANT_LOWPASS
+		float onepoleAlpha;
+		float pastFilterOut = 0;
+#endif /* not KS_CONSTANT_LOWPASS */
 
 		void updateReadPointer();
 
@@ -36,7 +41,11 @@ class KarplusStrong
 		
 		void setFrequency(float frequency);
 
+#ifdef KS_CONSTANT_LOWPASS
+		void setLossFactor(float lossFactor);
+#else /* KS_CONSTANT_LOWPASS */
 		void setDamping(float damping);
+#endif /* not KS_CONSTANT_LOWPASS */
 
 		static float linearInterpolation(float index, float pVal, float nVal);
 };

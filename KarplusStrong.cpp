@@ -27,10 +27,21 @@ float KarplusStrong::process(float input)
 	float prev = interpolatedRead(readPointer - 1.f);
 	
 	// Difference equation for K-S (including input excitation):
-	// y(n) = scaling * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
-	float out = input + dampingFactor_ * ( interpolatedRead(readPointer) + prev ) / 2.0f;
+	float in = interpolatedRead(readPointer);
+#ifdef KS_CONSTANT_LOWPASS
+	// just use an average filter + attenuation on the delay line:
+	// y(n) = scaling * x(n) + lossFactor * (y(n-N) + y(n-(N+1)) / 2
+	float filterOut = (in + prev) * 0.5f;
+#else /* KS_CONSTANT_LOWPASS */
+	// add a one-pole lowpass after the average filter + attenuation on the delay line:
+	// y(n) = scaling * x(n) + lossFactor * (y(n-N) + y(n-(N+1)))/2 * alpha + y(n - 1) * (1 - alpha)
+	float filterOut = (in + prev) * 0.5f * onepoleAlpha  + pastFilterOut * (1.f - onepoleAlpha);
+	pastFilterOut = filterOut;
+#endif /* KS_CONSTANT_LOWPASS */
+
+	float out = input + lossFactor_ * filterOut;
 	delayBuffer[writePointer] = out;
-	
+
 	updateWritePointer();
 
 	return out;
@@ -47,10 +58,22 @@ void KarplusStrong::setFrequency(float frequency)
 	delayLength_ = fs_/frequency; // Real value for the period of the first partial
 }
 
+#ifdef KS_CONSTANT_LOWPASS
+void KarplusStrong::setLossFactor(float lossFactor)
+{
+	lossFactor_ = lossFactor;
+}
+#else /* KS_CONSTANT_LOWPASS */
 void KarplusStrong::setDamping(float damping)
 {
-	dampingFactor_ = damping;
+	lossFactor_ = damping * 0.2f + 0.792f; // some hard-coded values to avoid pitch change as damping changes. Better check out the textbook!
+	onepoleAlpha = damping;
+	if(onepoleAlpha < 0.1)
+		onepoleAlpha = 0;
+	else if (onepoleAlpha > 1) // keep the feedback to reasonable levels
+		onepoleAlpha = 1; // onepole is in bypass
 }
+#endif /* KS_CONSTANT_LOWPASS */
 
 void KarplusStrong::updateReadPointer()
 {
@@ -58,6 +81,7 @@ void KarplusStrong::updateReadPointer()
 	while(readPointer >= delayBuffer.size())
 		readPointer -= delayBuffer.size();
 }
+
 float KarplusStrong::interpolatedRead(float index)
 {
 	while(index < 0)
@@ -83,6 +107,7 @@ void KarplusStrong::updateWritePointer()
 	if(++writePointer >= delayBuffer.size())
 		writePointer = 0;
 }
+
 KarplusStrong::~KarplusStrong() 
 {
 	cleanup();

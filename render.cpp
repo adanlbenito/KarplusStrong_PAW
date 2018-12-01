@@ -12,7 +12,8 @@ float gOutputGain = 0.55;
 float gFreqRatio = 1.333;
 
 float gFreqRange[2] = { 130.8165, 523.25 };
-float gDampingRange[2] = { 0.86, 0.992 };
+float gLossFactorRange[2] = { 0.86, 0.992 };
+float gDampingRange[2] = { 0.1, 1 };
 unsigned int gPiezoChannel = 0;
 unsigned int gMicChannel = 1;
 int gFsrChannel = 0;
@@ -45,7 +46,6 @@ bool setup(BelaContext *context, void *userData)
 
 void render(BelaContext *context, void *userData)
 {
-	float damping, frequency;
 	float fsrVal, potVal;
 	
 	for(unsigned int n = 0; n < context->audioFrames; n++) {
@@ -58,14 +58,21 @@ void render(BelaContext *context, void *userData)
 
 			fsrVal = analogRead(context, n/gAudioFramesPerAnalogFrame, gFsrChannel);
 			fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
-			damping = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gDampingRange[0], gDampingRange[1]);
-			potVal = analogRead(context, n/gAudioFramesPerAnalogFrame, gPotChannel);
-			frequency = map(potVal, 0, 1, gFreqRange[0], gFreqRange[1]);
-
-			gPiezoString.setFrequency(frequency);
+#ifdef KS_CONSTANT_LOWPASS
+			float lossFactor = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gLossFactorRange[0], gLossFactorRange[1]);
+			gPiezoString.setLossFactor(lossFactor);
+			gMicString.setLossFactor(lossFactor);
+#else /* KS_CONSTANT_LOWPASS */
+			float damping = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gDampingRange[0], gDampingRange[1]);
 			gPiezoString.setDamping(damping);
-			gMicString.setFrequency(frequency * gFreqRatio);
 			gMicString.setDamping(damping);
+#endif /* KS_CONSTANT_LOWPASS */
+
+			potVal = analogRead(context, n/gAudioFramesPerAnalogFrame, gPotChannel);
+			float frequency = map(potVal, 0, 1, gFreqRange[0], gFreqRange[1]);
+			gPiezoString.setFrequency(frequency);
+			gMicString.setFrequency(frequency * gFreqRatio);
+
 		}
 
 		float piezoInput = audioRead(context, n, gPiezoChannel);

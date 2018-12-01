@@ -5,53 +5,34 @@
 
 KarplusStrong::KarplusStrong() {}
 
-KarplusStrong::KarplusStrong(unsigned int length, unsigned int fs, float frequency)
+KarplusStrong::KarplusStrong(float fs, float minFrequency, float initialFrequency)
 {
-	setup(length, fs, frequency);
+	setup(fs, minFrequency, initialFrequency);
 }
 
-int KarplusStrong::setup(unsigned int length, unsigned int fs, float frequency)
+int KarplusStrong::setup(float fs, float minFrequency, float initialFrequency)
 {
 	fs_ = fs;
-	bufferLength = length * fs_;
-	delayBuffer.resize(bufferLength);
-	//fill(delayBuffer.begin(), delayBuffer.end(), 0.0);
-	setFrequency(frequency);
+	unsigned int bufferLength = 1 + (unsigned int)(fs_ / minFrequency + 0.5f);
+	delayBuffer.resize(bufferLength, 0);
+	setFrequency(initialFrequency);
 
 	return 0;
 }
 
 float KarplusStrong::process(float input) 
 {	
-	float prev;
-	float outPt;
-	float out;
-
 	updateReadPointer();
 	
-	prev = interpolatedRead(readPointer-1);
+	float prev = interpolatedRead(readPointer - 1.f);
 	
-	// Difference equation for K-S (modified to include input excitation):
+	// Difference equation for K-S (including input excitation):
 	// y(n) = scaling * x(n) + damping * (y(n-N) + y(n-(N+1)) / 2
-	float scalingFactor = dampingFactor_/2.0f;
-	outPt = scalingFactor * input + dampingFactor_ * ( interpolatedRead(readPointer) + prev ) / 2.0f;
-	out = tuningFilter(outPt);
+	float out = input + dampingFactor_ * ( interpolatedRead(readPointer) + prev ) / 2.0f;
 	delayBuffer[writePointer] = out;
 	
 	updateWritePointer();
 
-	return out;
-}
-
-float KarplusStrong::tuningFilter(float input)
-{
-	// Difference equation for all-pass filter used to correct tuning errors:
-	// y(n) = C * x(n) + x(n-1) - C * y(n-1) 
-	float out = apC * (input - apYm1) + apXm1;
-
-	apYm1 = out;
-	apXm1 = input;
-	
 	return out;
 }
 
@@ -63,34 +44,28 @@ void KarplusStrong::process(float* input, float* output, unsigned int length)
 
 void KarplusStrong::setFrequency(float frequency)
 {
-	p1 = fs_/frequency;
-	delayLength_ = p1 - 0.5 - epsilon;
-	pcF1 = p1 - delayLength_ - 0.5;
-	apC = (1 - pcF1)/(1 + pcF1);
+	delayLength_ = fs_/frequency; // Real value for the period of the first partial
 }
-
 
 void KarplusStrong::setDamping(float damping)
 {
-	if(damping != dampingFactor_)
-		dampingFactor_ = damping;
+	dampingFactor_ = damping;
 }
 
 void KarplusStrong::updateReadPointer()
 {
-	readPointer = (writePointer - delayLength_ + bufferLength);
-	while(readPointer >= bufferLength)
-		readPointer -= bufferLength;
-}	
-
+	readPointer = (writePointer - delayLength_ + delayBuffer.size());
+	while(readPointer >= delayBuffer.size())
+		readPointer -= delayBuffer.size();
+}
 float KarplusStrong::interpolatedRead(float index)
 {
 	while(index < 0)
-		index += bufferLength;
+		index += delayBuffer.size();
 	int pIndex = (int)index;
 	int nIndex = pIndex + 1;
-	while(nIndex >= bufferLength)
-		nIndex -= bufferLength;
+	while(nIndex >= delayBuffer.size())
+		nIndex -= delayBuffer.size();
 	float frac = index - pIndex;
 	float pVal = delayBuffer[pIndex];
 	float nVal = delayBuffer[nIndex];
@@ -105,10 +80,9 @@ float KarplusStrong::linearInterpolation(float index, float pVal, float nVal)
 
 void KarplusStrong::updateWritePointer()
 {
-	if(++writePointer >= bufferLength) 
+	if(++writePointer >= delayBuffer.size())
 		writePointer = 0;
 }
-
 KarplusStrong::~KarplusStrong() 
 {
 	cleanup();

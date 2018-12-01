@@ -1,0 +1,74 @@
+### STEP 0 
+	- Tap the piezo (connected on channel 0) and listent to K-S being triggered
+	- Open scope and look at piezo input and K-S output
+	- Adjust input gain to adjust clipping
+	
+### STEP 1
+	- Potentiometer connected to analog input 1
+	- Add code to render function:
+	
+		// read analog inputs (at audio rate) and update frequency
+		float potVal = analogRead(context, n, gPotChannel);
+		float frequency = map(potVal, 0, gAnalogInputRange, gFreqRange[0], gFreqRange[1]);
+		gPiezoString.setFrequency(frequency);
+		
+	- Use pot to adjust frequency of K-S
+### STEP 2
+	- FSR connected to analog input 0
+	- Add code to render function:
+	
+		// read analog inputs (at audio rate) and update loss factor
+		float fsrVal = analogRead(context, n, gFsrChannel);
+		float lossFactor = map(fsrVal, gAnalogInputRange, 0, gLossFactorRange[0], gLossFactorRange[1]);
+		gPiezoString.setLossFactor(lossFactor);
+		
+	- Use FSR to adjust loss-factor
+	- Is the FSR response suitable for this application?
+	- Log FSR to scope: 
+		- update number of channels in setup()
+		- add fsrVal to gScope.log()
+	- Let's clip the bottom range of the FSR, change/update code:
+		
+		fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
+		float lossFactor = map(fsrVal, gFsrRange[1], gFsrRange[0], gLossFactorRange[0], gLossFactorRange[1]);
+	
+### STEP 3
+	- Is this the response we want from the FSR? Can it be better?
+	- Try log mapping:
+	
+		fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
+		float fsrLog;
+		fsrLog = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gLossFactorRange[0], gLossFactorRange[1]);
+		float lossFactor = fsrLog;
+		gPiezoString.setLossFactor(lossFactor);
+		
+	- Wow!
+	- Log mapped FSR (fsrLog) to gScope
+	
+### STEP 4
+	- Add/replace microphone input (audio channel 1)
+	...setup()...
+		gMicString.setup(context->audioSampleRate, gFreqRange[0], 432.f * gFreqRatio);
+	...render()...
+		gMicString.setLossFactor(lossFactor);
+		gMicString.setFrequency(frequency * gFreqRatio);
+		....
+		float micInput = audioRead(context, n, gMicChannel);
+		float micStringOut = gMicString.process(micInput);
+		....		
+					audioWrite(context, n, ch, gOutputGain * (piezoStringOut + micStringOut));
+		....
+### STEP 5
+	- Loss-factor can be improved
+	- Add tunable LP filter to feedback loop on K-S for more realistic damping effect
+	- In KarplusStrong.h, comment out #define KS_CONSTANT_LOWPASS 
+	- In render():
+	
+#ifdef KS_CONSTANT_LOWPASS
+....
+#else /* KS_CONSTANT_LOWPASS */
+		fsrLog = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gDampingRange[0], gDampingRange[1]);
+		float damping = fsrLog;
+		gPiezoString.setDamping(damping);
+		gMicString.setDamping(damping);
+#endif /* KS_CONSTANT_LOWPASS */

@@ -18,8 +18,8 @@ unsigned int gPiezoChannel = 0;
 unsigned int gMicChannel = 1;
 int gFsrChannel = 0;
 int gPotChannel = 1;
-float gAnalogFullScale = 3.3/4.096;
-float gFsrRange[2] = { 0.4, gAnalogFullScale };
+float gAnalogInputRange = 3.3/4.096;
+float gFsrRange[2] = { 0.4, gAnalogInputRange };
 
 float logMap(float input, float inRange0, float inRange1, float outRange0, float outRange1)
 {
@@ -33,9 +33,8 @@ float logMap(float input, float inRange0, float inRange1, float outRange0, float
 bool setup(BelaContext *context, void *userData)
 {
 	gPiezoString.setup(context->audioSampleRate, gFreqRange[0], 432);
-	gMicString.setup(context->audioSampleRate, gFreqRange[0], 432.f * gFreqRatio);
 
-	gScope.setup(6, context->audioSampleRate);
+	gScope.setup(2, context->audioSampleRate);
 	
 	if(context->audioFrames != context->analogFrames)
 	{
@@ -50,37 +49,13 @@ void render(BelaContext *context, void *userData)
 	
 	for(unsigned int n = 0; n < context->audioFrames; n++) {
 		
-		// read analog inputs (at audio rate)  and update frequency and damping
-
-		float fsrVal = analogRead(context, n, gFsrChannel);
-		fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
-		float fsrLog;
-#ifdef KS_CONSTANT_LOWPASS
-		fsrLog = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gLossFactorRange[0], gLossFactorRange[1]);
-		float lossFactor = fsrLog;
-		gPiezoString.setLossFactor(lossFactor);
-		gMicString.setLossFactor(lossFactor);
-#else /* KS_CONSTANT_LOWPASS */
-		fsrLog = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gDampingRange[0], gDampingRange[1]);
-		float damping = fsrLog;
-		gPiezoString.setDamping(damping);
-		gMicString.setDamping(damping);
-#endif /* KS_CONSTANT_LOWPASS */
-
-		float potVal = analogRead(context, n, gPotChannel);
-		float frequency = map(potVal, 0, 1, gFreqRange[0], gFreqRange[1]);
-		gPiezoString.setFrequency(frequency);
-		gMicString.setFrequency(frequency * gFreqRatio);
-
 		float piezoInput = audioRead(context, n, gPiezoChannel);
-		float micInput = audioRead(context, n, gMicChannel);
 		float piezoStringOut = gPiezoString.process(piezoInput);
-		float micStringOut = gMicString.process(micInput);
 
 		for(unsigned int ch = 0; ch < context->audioOutChannels; ch++){
-			audioWrite(context, n, ch, gOutputGain * (piezoStringOut + micStringOut));
+			audioWrite(context, n, ch, gOutputGain * piezoStringOut);
 		}
-		gScope.log(piezoInput, piezoStringOut, fsrVal, fsrLog, micInput, micStringOut);
+		gScope.log(piezoInput, piezoStringOut);
 	}
 }
 

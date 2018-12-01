@@ -34,7 +34,7 @@ float KarplusStrong::process(float input)
 	float filterOut = (in + prev) * 0.5f;
 #else /* KS_CONSTANT_LOWPASS */
 	// add a one-pole lowpass after the average filter + attenuation on the delay line:
-	// y(n) = scaling * x(n) + lossFactor * (y(n-N) + y(n-(N+1)))/2 * alpha + y(n - 1) * (1 - alpha)
+	// y(n) = scaling * x(n) + lossFactor * [ (y(n-N) + y(n-(N+1)))/2 * alpha + y(n - 1) * (1 - alpha) ]
 	float filterOut = (in + prev) * 0.5f * onepoleAlpha  + pastFilterOut * (1.f - onepoleAlpha);
 	pastFilterOut = filterOut;
 #endif /* KS_CONSTANT_LOWPASS */

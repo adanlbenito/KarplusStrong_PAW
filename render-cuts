@@ -19,6 +19,7 @@
 	
 		// read analog inputs (at audio rate) and update loss factor
 		float fsrVal = analogRead(context, n, gFsrChannel);
+
 		float lossFactor = map(fsrVal, gAnalogInputRange, 0, gLossFactorRange[0], gLossFactorRange[1]);
 		gPiezoString.setLossFactor(lossFactor);
 		
@@ -32,15 +33,15 @@
 		fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
 		float lossFactor = map(fsrVal, gFsrRange[1], gFsrRange[0], gLossFactorRange[0], gLossFactorRange[1]);
 	
+	- Log lossFactor to scope
+
 ### STEP 3
 	- Is this the response we want from the FSR? Can it be better?
 	- Try log mapping:
 	
-		fsrVal = constrain(fsrVal, gFsrRange[0], gFsrRange[1]);
 		float fsrLog;
 		fsrLog = logMap(fsrVal, gFsrRange[1], gFsrRange[0], gLossFactorRange[0], gLossFactorRange[1]);
 		float lossFactor = fsrLog;
-		gPiezoString.setLossFactor(lossFactor);
 		
 	- Wow!
 	- Log mapped FSR (fsrLog) to gScope

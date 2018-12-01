@@ -1,5 +1,5 @@
 ### STEP 0 
-	- Tap the piezo (connected on channel 0) and listent to K-S being triggered
+	- Tap the piezo (connected on channel 0) and listen to K-S being triggered
 	- Open scope and look at piezo input and K-S output
 	- Adjust input gain to adjust clipping
 	

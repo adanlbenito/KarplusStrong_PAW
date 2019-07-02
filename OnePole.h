@@ -8,8 +8,9 @@ class OnePole
 
 	private:
 		
-		float fc_;
-		int type_;
+		float _fc;
+		float _fs;
+		int _type;
 
 		float a0, b1, ym1;
 		
@@ -19,10 +20,10 @@ class OnePole
 
 	public:
 		OnePole();
-		OnePole(float fc, int type);
+		OnePole(float fc, float fs, int type);
 		~OnePole();
 		
-		int setup(float fc, int type = LP);
+		int setup(float fc, float fs, int type = LP);
 		void cleanup();
 		
 		enum Type 
@@ -31,7 +32,7 @@ class OnePole
 			HP = 1
 		};
 		
-		void setFilter(float fc, int type);
+		void setFilter(float fc, float fs, int type);
 		
 		float process(float input);
 };

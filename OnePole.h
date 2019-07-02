@@ -12,6 +12,8 @@ class OnePole
 		int type_;
 
 		float a0, b1, ym1;
+		
+		void setType(int type);
 
 	public:
 		OnePole();
@@ -27,8 +29,9 @@ class OnePole
 			HP = 1
 		};
 		
+		void setFilter(float fc, int type);
+
 		void setFc(float fc);
-		void setType(int type);
 		
 		float process(float input);
 };

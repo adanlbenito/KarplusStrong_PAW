@@ -1,4 +1,4 @@
-#include <OnePole.h>
+#include "OnePole.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -11,10 +11,15 @@ OnePole::OnePole(float fc, int type)
 
 int OnePole::setup(float fc, int type)
 {
-	setFc(fc);
-	setType(type);
-
+	ym1 = 0.0; // Reset filter state
+	setFilter(fc, type);
 	return 0;
+}
+
+void OnePole::setFilter(float fc, int type)
+{
+	setType(type);
+	setFc(fc);
 }
 
 void OnePole::setFc(float fc)
@@ -40,7 +45,7 @@ void OnePole::setType(int type)
 	}	
 	else
 	{
-		fprintf(stderr, "Unvalid type\n");
+		fprintf(stderr, "Invalid type\n");
 	}
 }	
 

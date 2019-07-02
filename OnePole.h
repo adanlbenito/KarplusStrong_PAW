@@ -15,6 +15,8 @@ class OnePole
 		
 		void setType(int type);
 
+		void setFc(float fc);
+
 	public:
 		OnePole();
 		OnePole(float fc, int type);
@@ -30,8 +32,6 @@ class OnePole
 		};
 		
 		void setFilter(float fc, int type);
-
-		void setFc(float fc);
 		
 		float process(float input);
 };

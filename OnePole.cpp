@@ -26,13 +26,13 @@ void OnePole::setFc(float fc)
 {
 	if(type_ == LP)
 	{
-		b1 = exp(-2.0 * M_PI * fc);
-		a0 = 1.0 - b1;
+		b1 = expf(-2.0f * (float)M_PI * fc);
+		a0 = 1.0f - b1;
 	}
 	else if(type_ == HP)
 	{
-		b1 = -exp(-2.0 * M_PI * (0.5 - fc));
-		a0 = 1.0 + b1;
+		b1 = -expf(-2.0f * (float)M_PI * (0.5f - fc));
+		a0 = 1.0f + b1;
 	}
 	fc_ = fc;
 }

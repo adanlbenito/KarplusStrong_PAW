@@ -23,10 +23,12 @@ float gFsrRange[2] = { 0.4, gAnalogFullScale };
 
 float logMap(float input, float inRange0, float inRange1, float outRange0, float outRange1)
 {
-	float base = powf_neon(10, outRange0);
-	float range = powf_neon(10, outRange1) - base;
+	// the division/multiply by fac is to avoid reaching numerical limits
+	const float fac = 100000;
+	float base = powf_neon(10, outRange0 / fac);
+	float range = powf_neon(10, outRange1 / fac) - base;
 	float normIn = map(input, inRange0, inRange1, 0, 1);
-	float out = log10f_neon(base + normIn * range);
+	float out = log10f_neon(base + normIn * range) * fac;
 	return out;
 }
 

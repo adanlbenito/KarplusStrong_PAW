@@ -12,8 +12,10 @@ KarplusStrong::KarplusStrong(float fs, float minFrequency, float initialFrequenc
 
 int KarplusStrong::setup(float fs, float minFrequency, float initialFrequency)
 {
+	onePole.setup(1, 2);
+	weight = 0.5f;
 	fs_ = fs;
-	unsigned int bufferLength = 1 + (unsigned int)(fs_ / minFrequency + 0.5f);
+	unsigned int bufferLength = 2 * (1 + (unsigned int)(fs_ / minFrequency + 0.5f)); // 2*: when inverted, the frequency halves
 	delayBuffer.resize(bufferLength, 0);
 	setFrequency(initialFrequency);
 
@@ -22,28 +24,23 @@ int KarplusStrong::setup(float fs, float minFrequency, float initialFrequency)
 
 float KarplusStrong::process(float input) 
 {	
-	updateReadPointer();
-	
+	float readPointer = (writePointer - delayLength_ * (invert ? 2 : 1) + delayBuffer.size());
+	while(readPointer >= delayBuffer.size())
+		readPointer -= delayBuffer.size();
 	float prev = interpolatedRead(readPointer - 1.f);
 	
 	// Difference equation for K-S (including input excitation):
 	float in = interpolatedRead(readPointer);
-#ifdef KS_CONSTANT_LOWPASS
-	// just use an average filter + attenuation on the delay line:
-	// y(n) = scaling * x(n) + lossFactor * (y(n-N) + y(n-(N+1)) / 2
-	float filterOut = (in + prev) * 0.5f;
-#else /* KS_CONSTANT_LOWPASS */
 	// add a one-pole lowpass after the average filter + attenuation on the delay line:
 	// y(n) = scaling * x(n) + lossFactor * (y(n-N) + y(n-(N+1)))/2 * alpha + y(n - 1) * (1 - alpha)
-	float filterOut = (in + prev) * 0.5f * onepoleAlpha  + pastFilterOut * (1.f - onepoleAlpha);
-	pastFilterOut = filterOut;
-#endif /* KS_CONSTANT_LOWPASS */
+	float filterIn = weight * in + prev * (1.f - weight);
+	float filterOut = onePole.process(filterIn);
 
-	float out = input + lossFactor_ * filterOut;
+	float out = input + (invert ? 1 : -1) * lossFactor_ * filterOut;
 	delayBuffer[writePointer] = out;
 
-	updateWritePointer();
-
+	if(++writePointer >= delayBuffer.size())
+		writePointer = 0;
 	return out;
 }
 
@@ -53,33 +50,30 @@ void KarplusStrong::process(float* input, float* output, unsigned int length)
 		output[i] = process(input[i]);
 }
 
+void KarplusStrong::setWeight(float weight)
+{
+	this->weight = weight;
+}
+
+void KarplusStrong::setInvert(bool invert)
+{
+	this->invert = invert;
+}
+
 void KarplusStrong::setFrequency(float frequency)
 {
 	delayLength_ = fs_/frequency; // Real value for the period of the first partial
 }
 
-#ifdef KS_CONSTANT_LOWPASS
 void KarplusStrong::setLossFactor(float lossFactor)
 {
 	lossFactor_ = lossFactor;
 }
-#else /* KS_CONSTANT_LOWPASS */
+
 void KarplusStrong::setDamping(float damping)
 {
-	lossFactor_ = damping * 0.2f + 0.792f; // some hard-coded values to avoid pitch change as damping changes. Better check out the textbook!
-	onepoleAlpha = damping;
-	if(onepoleAlpha < 0.1)
-		onepoleAlpha = 0;
-	else if (onepoleAlpha > 1) // keep the feedback to reasonable levels
-		onepoleAlpha = 1; // onepole is in bypass
-}
-#endif /* KS_CONSTANT_LOWPASS */
-
-void KarplusStrong::updateReadPointer()
-{
-	readPointer = (writePointer - delayLength_ + delayBuffer.size());
-	while(readPointer >= delayBuffer.size())
-		readPointer -= delayBuffer.size();
+	// lossFactor_ = damping * 0.2f + 0.792f; // some hard-coded values to avoid pitch change as damping changes. Better check out the textbook!
+	onePole.setFilter(damping);
 }
 
 float KarplusStrong::interpolatedRead(float index)
@@ -100,12 +94,6 @@ float KarplusStrong::interpolatedRead(float index)
 float KarplusStrong::linearInterpolation(float index, float pVal, float nVal)
 {
 	return pVal + index * (nVal - pVal);
-}
-
-void KarplusStrong::updateWritePointer()
-{
-	if(++writePointer >= delayBuffer.size())
-		writePointer = 0;
 }
 
 KarplusStrong::~KarplusStrong() 

@@ -5,24 +5,52 @@
 #include <libraries/math_neon/math_neon.h>
 #include <libraries/Gui/Gui.h>
 #include <libraries/GuiController/GuiController.h>
+#include <libraries/Trill/Trill.h>
+#include <RtMsgFifo.h>
+#include "TrillMonitor.h"
 
-KarplusStrong gPiezoString;
-KarplusStrong gMicString;
+RtNonRtMsgFifo gPipe;
 Scope gScope;
 Gui gui;
 GuiController controller;
-float gOutputGain = 0.55;
+Trill craft;
+TrillMonitor trillMonitor;
+struct Channel {
+	unsigned int c;
+	float threshOnset;
+	float threshDamp;
+	struct {
+		// set by i2c thread
+		float value = 0;
+		// set by audio thread
+		int attack = -1;
+	} s;
+};
+
+std::vector<Channel> gChannels = {
+	{0, 0.60, 0.7},
+	{2, 0.5, 0.75},
+	{4, 0.4, 0.75},
+	{6, 0.4, 0.75},
+	{8, 0.4, 0.75},
+	{10, 0.4, 0.75},
+	{12, 0.4, 0.75},
+	{14, 0.4, 0.75},
+	{16, 0.4, 0.75},
+	{18, 0.4, 0.75},
+};
+std::vector<KarplusStrong> synths(gChannels.size());
+
+struct OnsetMsg { 
+	unsigned int channel;
+	float velocity;
+};
+
 float gFreqRatio = 1.333;
 
 float gFreqRange[2] = { 130.8165 / 2, 523.25 };
 float gLossFactorRange[2] = { 0.9, 0.994 };
 float gDampingRange[2] = { 0.01, 1 };
-unsigned int gPiezoChannel = 0;
-unsigned int gMicChannel = 1;
-int gFsrChannel = 0;
-int gPotChannel = 1;
-float gAnalogFullScale = 3.3/4.096;
-float gFsrRange[2] = { 0.4, gAnalogFullScale };
 
 float logMap(float input, float inRange0, float inRange1, float outRange0, float outRange1)
 {
@@ -34,108 +62,128 @@ float logMap(float input, float inRange0, float inRange1, float outRange0, float
 	float out = log10f_neon(base + normIn * range) * fac;
 	return out;
 }
-#define KSSTRING
-// #define KSDRUM
-#ifdef KSSTRING
+
 unsigned int gDampSliderIdx;
 unsigned int gLossFactorSliderIdx;
 unsigned int gInvertSliderIdx;
 unsigned int gWeightSliderIdx;
 unsigned int gFreqSliderIdx;
-#endif // KSSTRING
+unsigned int gGainSliderIdx;
+unsigned int gLevelSliderIdx;
 
-#ifdef KSDRUM
-#include "KsDrum.h"
-KsDrum drum;
-unsigned int gPSliderIdx;
-unsigned int gBSliderIdx;
-size_t drumSize = 4096;
-#endif // KSDRUM
+void readTrill(void*)
+{
+	unsigned int count = 0;
+	std::vector<unsigned int> lastOnset(gChannels.size()); // for crude debounce
+	while(!Bela_stopRequested())
+	{
+		count++;
+		craft.readI2C(true);
+		for(size_t n = 0; n < gChannels.size(); ++n)
+		{
+			Channel& c = gChannels[n];
+			float val = craft.rawData[gChannels[n].c];
+			float pastVal = gChannels[n].s.value;
+			if(pastVal < c.threshOnset && val >= c.threshOnset && count - lastOnset[n] > 5)
+			{
+				struct OnsetMsg msg;
+				msg.channel = n;
+				msg.velocity = val - gChannels[n].s.value;
+				gPipe.writeNonRt(msg);
+				lastOnset[n] = count;
+			}
+			gChannels[n].s.value = val;
+		}
+		trillMonitor.i2cCallback(craft);
+		usleep(10000);
+	}
+}
 
 bool setup(BelaContext *context, void *userData)
 {
+	trillMonitor.setup(context);
+	gPipe.setup("onsetpipe");
+	craft.setup(1, Trill::CRAFT, 0x37);
+	usleep(10000);
+	craft.setMode(Trill::RAW);
+	usleep(10000);
+	craft.setPrescaler(5);
+	usleep(10000);
+	// craft.updateBaseline();
+	// usleep(10000);
+	Bela_runAuxiliaryTask(readTrill);
 	gui.setup(context->projectName);
 	controller.setup(&gui, "controls");
-#ifdef KSSTRING
+
 	gDampSliderIdx = controller.addSlider("damp", 1);
 	gLossFactorSliderIdx = controller.addSlider("loss", 0.95);
 	gInvertSliderIdx = controller.addSlider("invert", 0, 0, 1, 1);
 	gWeightSliderIdx = controller.addSlider("weight", 0.5, 0.5, 1.3);
 	gFreqSliderIdx = controller.addSlider("freq", 0.5, 0, 1);
-#endif // KSSTRING
-#ifdef KSDRUM
-	gPSliderIdx = controller.addSlider("p", 400, 1, drumSize, 1);
-	gBSliderIdx = controller.addSlider("b", 0.5, 0, 1, 0.001);
-	drum.setup(drumSize);
-#endif // KSDRUM
-	gPiezoString.setup(context->audioSampleRate, gFreqRange[0], 432);
-	gMicString.setup(context->audioSampleRate, gFreqRange[0], 432.f * gFreqRatio);
-	gScope.setup(2, context->audioSampleRate);
+	gGainSliderIdx = controller.addSlider("gain", 0.5, 0, 1);
+	gLevelSliderIdx = controller.addSlider("level", 0.5, 0, 1);
+
+	for(auto& s : synths)
+		s.setup(context->audioSampleRate, gFreqRange[0], 432);
+
+	gScope.setup(synths.size(), context->audioSampleRate);
 	return true;
 }
 
 void render(BelaContext *context, void *userData)
 {
-	static int count = 0;
-	count += context->audioFrames;
-	if(count % 40000 >= 40000 - context->audioFrames)
-	{
-		count = 0;
-	}
-#ifdef KSSTRING
 	float lossFactor = logMap(controller.getSliderValue(gLossFactorSliderIdx), 0, 1, gLossFactorRange[0], gLossFactorRange[1]);
-	gPiezoString.setLossFactor(lossFactor);
-	gMicString.setLossFactor(lossFactor);
+	for(auto& s : synths)
+		s.setLossFactor(lossFactor);
 
 	bool invert = controller.getSliderValue(gInvertSliderIdx);
-	gPiezoString.setInvert(invert);
-	gMicString.setInvert(invert);
+	for(auto& s : synths)
+		s.setInvert(invert);
 
-	float damping = logMap(controller.getSliderValue(gDampSliderIdx), 0, 1, gDampingRange[0], gDampingRange[1]);
-	gPiezoString.setDamping(damping);
-	gMicString.setDamping(damping);
+	float dampingSlider = controller.getSliderValue(gDampSliderIdx);
+	float damping = logMap(dampingSlider, 0, 1, gDampingRange[0], gDampingRange[1]);
+	for(size_t i = 0; i < synths.size(); ++i)
+	{
+		float d = damping * (gChannels[i].s.value > gChannels[i].threshDamp ? 0.1f : 1.f);
+		synths[i].setDamping(d);
+	}
 
 	float weight = controller.getSliderValue(gWeightSliderIdx);
-	gPiezoString.setWeight(weight);
-	gMicString.setWeight(weight);
+	for(auto& s : synths)
+		s.setWeight(weight);
 
 	float frequency = logMap(controller.getSliderValue(gFreqSliderIdx), 0, 1, gFreqRange[0], gFreqRange[1]);
+	for(size_t n = 0; n < synths.size(); ++n)
+		synths[n].setFrequency(frequency * (1.f + (gFreqRatio - 1.f) * n));
 
-#endif // KSSTRING
-#ifdef KSDRUM
-	float p = controller.getSliderValue(gPSliderIdx);
-	float b = controller.getSliderValue(gBSliderIdx);
-#endif // KSDRUM
+	float gain = logMap(controller.getSliderValue(gGainSliderIdx), 0, 1, 0.001, 10);
+	float max = 0;
 	for(unsigned int n = 0; n < context->audioFrames; n++) {
-#ifdef KSSTRING
-		gPiezoString.setFrequency(frequency);
-		gMicString.setFrequency(frequency * gFreqRatio);
-		float piezoInput = audioRead(context, n, gPiezoChannel);
-		float micInput = audioRead(context, n, gMicChannel);
-		piezoInput = 0;
-		micInput = 0;
-		if(count < 100)
+		float logs[synths.size()];
+		float out = 0;
+		OnsetMsg msg;
+		while(1 == gPipe.readRt(msg))
 		{
-			// trigger piezoInput
-			srand(0); // make sure they all sound the same
-			float in = rand() / float(RAND_MAX) * 2.f - 1.f;
-			piezoInput = in;
+			Channel& c = gChannels[msg.channel];
+			c.s.attack = msg.velocity * msg.velocity * msg.velocity * 1000;
+			rt_printf("%u %.3f %u\n", msg.channel, msg.velocity, c.s.attack);
 		}
-		float piezoStringOut = gPiezoString.process(piezoInput);
-		float micStringOut = gMicString.process(micInput);
-		float out = gOutputGain * (piezoStringOut + micStringOut);
-#endif // KSSTRING
-#ifdef KSDRUM
-		// ks drum
-		if(count == 0)
-			drum.setup(drumSize);
-		float r = rand() / float(RAND_MAX); // could get rand from an analog input, e.g.: fmodf(analogRead(context, 0, n/2) * 1000.f, 1);
-		float out = drum.process(r, b, p);
-#endif /// KSDRUM
+		for(size_t i = 0; i < gChannels.size(); ++i)
+		{
+			Channel& c = gChannels[i];
+			float in = 0;
+			if(c.s.attack-- >= 0)
+				in = rand() / float(RAND_MAX) * 2.f - 1.f;
+			float val = synths[i].process(in);
+			logs[i] = val;
+			out += val;
+		}
+		out *= gain;
 		for(unsigned int ch = 0; ch < context->audioOutChannels; ch++){
 			audioWrite(context, n, ch, out);
 		}
-		gScope.log(out);
+		max = std::max(max, std::abs(out));
+		gScope.log(logs);
 	}
 }
 
